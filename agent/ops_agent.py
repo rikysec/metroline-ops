@@ -22,6 +22,7 @@ from __future__ import annotations
 import fcntl
 import json
 import select
+import signal
 import os
 import platform
 import shutil
@@ -133,7 +134,8 @@ def run(cmd, timeout=600, log_path=None, heartbeat=None):
     try:
         argv = resolve_cmd(cmd)
         lf = open(log_path, "ab") if log_path else None
-        p = subprocess.Popen(argv, cwd=REPO, env=job_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # own session: a timeout kills the whole process group (sh -c … sleep … would otherwise outlive the job)
+        p = subprocess.Popen(argv, cwd=REPO, env=job_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         fd = p.stdout.fileno()
         started = time.time()
         last_beat = started
@@ -161,7 +163,10 @@ def run(cmd, timeout=600, log_path=None, heartbeat=None):
                 break
             if not timed_out and time.time() - started > timeout:
                 timed_out = True
-                p.kill()
+                try:
+                    os.killpg(p.pid, signal.SIGKILL)
+                except Exception:
+                    p.kill()
                 note = f"\n[timeout after {timeout}s]\n".encode()
                 buf.extend(note)
                 if lf:
