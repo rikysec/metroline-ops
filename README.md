@@ -20,7 +20,8 @@ be public and the Mac needs no credentials to read it.
 
 | Piece | Where | What |
 |---|---|---|
-| `agent/ops_agent.py` | `~/metroline-ops`, launchd `app.metroline.ops` every 600 s | `git pull --ff-only`, due jobs, new commands, `status.json` |
+| `agent/launcher.py` | `~/metroline-ops-state/launcher.py` (copied by bootstrap, **outside** the repo), launchd `app.metroline.ops` every 600 s | fetch + fast-forward (hard reset when upstream history was rewritten and the mirror is clean), byte-compile check with rollback to the last good commit, then runs the agent — a bad push can never brick the channel |
+| `agent/ops_agent.py` | `~/metroline-ops` | due jobs (heartbeat every 5 min while one runs), new commands (at-most-once), `status.json` |
 | `jobs.json` | repo | recurring jobs: `poi_fleet` (every 12 h, ≤35 cities, 50-minute budget), `health` (every 10 min) |
 | `commands/*.json` | repo | one-shot commands, run once each (see `commands/README.md`) |
 | `fleet/poi_fleet.py` | repo | bakes `poi_<city>.json.gz` for `fleet/cities_top1000.json`, writes `poi_cities.json` (the app's catalogue) |
@@ -58,8 +59,12 @@ curl -fsSL https://raw.githubusercontent.com/rikysec/metroline-ops/main/bootstra
   commit, push: the next tick runs the new code.
 * **Add/adjust a hub** → `fleet/poi_overrides.json` + a command `--only <city>`.
 * **Watch** → `curl -s "https://data.metroline.app/demand/_ops/status.json?t=$(date +%s)" | python3 -m json.tool`.
-  `fleet.baked / fleet.total`, `fleet.last_note`, `jobs.poi_fleet.status`, `host.disk_free_gb`, `tick` (must be < 30
-  minutes old — older means the Mac is asleep, logged out or offline).
+  `fleet.baked / fleet.total`, `fleet.last_note`, `jobs.poi_fleet.status`, `host.disk_free_gb`, `errors`,
+  `launcher.update/compile`, and `heartbeat` (refreshed every 5 minutes even during a long job: older than 30
+  minutes means the Mac is asleep, logged out or offline).
+* **Trust boundary** → push access to this repository is code execution as the Mac's user every 10 minutes
+  (the agent deliberately runs whatever `jobs.json`/`commands/` say). Keep the GitHub account behind 2FA; the agent
+  itself has no sudo and no secrets to leak, and the served folder is append-only data.
 
 ## The POI fleet
 
@@ -70,6 +75,12 @@ status-poll before each query, 60 s between cities, back-off on 429/504 — the 
 queries/day for an application), then Wikidata SPARQL by POST in batches of 200. Output: `poi_<id>.json.gz` (3–15 KB)
 and `poi_cities.json` with a `generated` stamp per city; the app requests `poi_<id>.json.gz?v=<generated>`, so every
 new bake is a new CDN cache entry and nothing has to be purged.
+
+Known calibration caveat: footprints come from OSM bounds (0.55 × box for ways, 0.40 for multipolygon relations,
+measured on the 8 reference cities), capped per type; in East-Asian megacities hundreds of large "plaza" malls hit
+the 40 000/day cap each (Shenzhen: 211 malls ≈ 3.1 M visitors/day), a share of the city's PT trips that is still small
+but worth a per-category sanity pass in P5. Relations spanning more than 1.5 km (multi-site campuses, hospital
+trusts) never anchor a POI on their own.
 
 Fair-use note: the OSM wiki asks heavy or commercial users to self-host Overpass. The fleet stays well inside the
 "does not disturb" envelope; if the daily volume ever has to grow (hourly refresh, more categories), the plan is a
