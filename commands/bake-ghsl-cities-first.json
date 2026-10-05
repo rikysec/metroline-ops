@@ -1,0 +1,4 @@
+{ "id": "bake-ghsl-first", "nonce": "2026-10-05a",
+  "note": "the 8 GHSL cities (the app's launch cities) before the rank order reaches them",
+  "cmd": ["python3", "fleet/poi_fleet.py", "--only", "torino,milano,roma,paris,london,madrid,barcelona,newyork", "--budget-minutes", "25"],
+  "timeout_minutes": 30 }
