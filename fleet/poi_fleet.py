@@ -37,7 +37,7 @@ STATE_FILE = os.path.join(STATE, "poi_fleet.json")
 SUMMARY_FILE = os.path.join(STATE, "poi_fleet_summary.json")
 CATALOGUE_SCHEMA = 1
 OSM_CACHE_DAYS = 14          # raw Overpass answers are kept this long (rebake after an override edit is free)
-SLEEP_BETWEEN_CITIES_S = 20  # politeness towards the public Overpass instances
+SLEEP_BETWEEN_CITIES_S = 60  # Overpass dispatcher penalty is capped at 60 s: a fixed floor between cities keeps the slot clean
 
 
 def now_iso():

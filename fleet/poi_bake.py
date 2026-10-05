@@ -41,7 +41,10 @@ from datetime import date
 HERE = os.path.dirname(os.path.abspath(__file__))
 OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
 WIKIDATA = "https://query.wikidata.org/sparql"
-UA = "metroline-poi-bake/1.0 (https://metroline.app)"
+# Wikimedia User-Agent policy: client name + version + contact URL + library — never a bare/browser UA (that lands in
+# the anonymous-scraper rate tier or gets blocked). The same string is sent to Overpass.
+UA = "MetrolinePOIBot/1.1 (+https://metroline.app) python-urllib/3"
+WIKIDATA_BATCH = 200   # QIDs per VALUES block (measured 0.9 s; hard max 500 — a GET of 500 already returns HTTP 431)
 
 PROFILE = {"stadium": "eventPeak", "conference": "eventPeak", "mall": "weekend", "university": "weekday",
            "rail_station": "steady", "airport": "steady", "hospital": "steady"}
@@ -60,6 +63,88 @@ def http_json(url, data=None, timeout=180, headers=None):
     req = urllib.request.Request(url, data=data, headers=h)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
+
+
+def retry_after_s(ex, default):
+    """Honour a Retry-After header (delta-seconds) on 429/503, else the given default."""
+    try:
+        v = ex.headers.get("Retry-After") if getattr(ex, "headers", None) else None
+        return max(default, float(v)) if v and v.strip().isdigit() else default
+    except Exception:
+        return default
+
+
+class OverpassBusy(Exception):
+    """Overpass refused the query for load reasons (429 rate-limited / 504 dispatcher busy) on every attempt: the
+    caller should stop the run and come back later, not hammer the mirror."""
+
+
+OVERPASS_STATUS = "https://overpass-api.de/api/status"
+
+
+def overpass_wait_for_slot(max_polls=5):
+    """Overpass fair use: ask /api/status for a free slot before each query (no Retry-After is ever sent). Returns
+    the seconds waited. Any failure to read the status is ignored (the query itself will tell)."""
+    waited = 0.0
+    for _ in range(max_polls):
+        try:
+            req = urllib.request.Request(OVERPASS_STATUS, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                txt = r.read().decode("utf-8", "replace")
+        except Exception:
+            return waited
+        m = re.search(r"(\d+) slots? available now", txt)
+        if m and int(m.group(1)) >= 1:
+            return waited
+        waits = [int(x) for x in re.findall(r"in (\d+) seconds", txt)]
+        pause = (min(waits) + 2) if waits else 20
+        pause = min(max(pause, 2), 120)
+        time.sleep(pause)
+        waited += pause
+    return waited
+
+
+def overpass(bbox, retries=3):
+    """One request per city: tags + bounds only ("out tags bb qt"). Measured on the exact selection: the runtime is
+    the bbox selection, not the output, and geometry doubles the bytes for nothing (the footprint estimate below
+    uses the bounds). [timeout:60][maxsize:128 MiB]: the dispatcher admits a query only if its declared budget is
+    at most half of what is free, so the defaults (180 s / 512 MiB) get 504 under load."""
+    s, w, n, e = bbox[0], bbox[1], bbox[2], bbox[3]
+    bb = f"({s},{w},{n},{e})"
+    big = (n - s) * (e - w) > 0.2
+    q = f"""[out:json][timeout:{90 if big else 60}][maxsize:{268435456 if big else 134217728}];(
+nwr["aeroway"="aerodrome"]["name"]{bb};
+nwr["railway"="station"]["name"]{bb};
+nwr["leisure"="stadium"]["name"]{bb};
+nwr["amenity"~"^(university|hospital|conference_centre)$"]["name"]{bb};
+nwr["shop"="mall"]["name"]{bb};
+);out tags bb qt;"""
+    busy = 0
+    for attempt in range(retries):
+        overpass_wait_for_slot()
+        for ep in OVERPASS:
+            try:
+                return http_json(ep, data=("data=" + urllib.parse.quote(q)).encode(), timeout=150)["elements"]
+            except urllib.error.HTTPError as ex:  # pragma: no cover
+                sys.stderr.write(f"  overpass {ep} attempt {attempt + 1}: HTTP {ex.code}\n")
+                if ex.code == 400:
+                    raise RuntimeError("Overpass rejected the query (400) — a bug, not load")
+                if ex.code in (429, 503, 504):
+                    busy += 1
+            except Exception as ex:  # pragma: no cover
+                sys.stderr.write(f"  overpass {ep} attempt {attempt + 1}: {ex}\n")
+                busy += 1   # a read timeout is a load symptom too
+        time.sleep(60 * (attempt + 1))
+    raise OverpassBusy(f"Overpass unavailable after {retries} attempts ({busy} load errors)")
+
+
+def retry_after_s(ex, default):
+    """Honour a Retry-After header (delta-seconds) on 429/503, else the given default."""
+    try:
+        v = ex.headers.get("Retry-After") if getattr(ex, "headers", None) else None
+        return max(default, float(v)) if v and v.strip().isdigit() else default
+    except Exception:
+        return default
 
 
 class OverpassBusy(Exception):
@@ -97,34 +182,61 @@ nwr["amenity"="conference_centre"]["name"]{bb};
 
 
 def wikidata(ids):
+    """Size signals of the OSM elements' Wikidata items, one POST per WIKIDATA_BATCH ids, strictly serial.
+    GROUP BY ?item with MAX()/SAMPLE() so multi-valued properties do not cross-multiply the rows."""
     out = {}
     ids = sorted(set(ids))
-    for i in range(0, len(ids), 150):
-        chunk = ids[i:i + 150]
-        q = ("SELECT ?item ?daily ?annual ?visitors ?capacity ?platforms ?students ?beds ?iata WHERE { VALUES ?item { "
+    batch = WIKIDATA_BATCH
+    i = 0
+    errors = 0
+    while i < len(ids):
+        chunk = ids[i:i + batch]
+        q = ("SELECT ?item (MAX(?daily_) AS ?daily) (MAX(?annual_) AS ?annual) (MAX(?visitors_) AS ?visitors) "
+             "(MAX(?capacity_) AS ?capacity) (MAX(?platforms_) AS ?platforms) (MAX(?students_) AS ?students) "
+             "(MAX(?beds_) AS ?beds) (SAMPLE(?iata_) AS ?iata) WHERE { VALUES ?item { "
              + " ".join("wd:" + x for x in chunk) + " } "
-             "OPTIONAL{?item wdt:P1373 ?daily.} OPTIONAL{?item wdt:P3872 ?annual.} OPTIONAL{?item wdt:P1174 ?visitors.} "
-             "OPTIONAL{?item wdt:P1083 ?capacity.} OPTIONAL{?item wdt:P1103 ?platforms.} OPTIONAL{?item wdt:P2196 ?students.} "
-             "OPTIONAL{?item wdt:P6801 ?beds.} OPTIONAL{?item wdt:P238 ?iata.} }")
-        for attempt in range(3):
+             "OPTIONAL{?item wdt:P1373 ?daily_.} OPTIONAL{?item wdt:P3872 ?annual_.} OPTIONAL{?item wdt:P1174 ?visitors_.} "
+             "OPTIONAL{?item wdt:P1083 ?capacity_.} OPTIONAL{?item wdt:P1103 ?platforms_.} OPTIONAL{?item wdt:P2196 ?students_.} "
+             "OPTIONAL{?item wdt:P6801 ?beds_.} OPTIONAL{?item wdt:P238 ?iata_.} } GROUP BY ?item")
+        rows = None
+        for attempt in range(5):
             try:
-                rows = http_json(WIKIDATA + "?format=json&query=" + urllib.parse.quote(q),
-                                 headers={"Accept": "application/sparql-results+json"})["results"]["bindings"]
+                rows = http_json(WIKIDATA, data=("query=" + urllib.parse.quote(q)).encode(), timeout=70,
+                                 headers={"Accept": "application/sparql-results+json",
+                                          "Content-Type": "application/x-www-form-urlencoded"})["results"]["bindings"]
+                errors = 0
                 break
+            except urllib.error.HTTPError as ex:  # pragma: no cover
+                sys.stderr.write(f"  wikidata attempt {attempt + 1}: HTTP {ex.code}\n")
+                if ex.code == 403:
+                    raise RuntimeError("Wikidata refused the User-Agent (403) — stop, do not retry")
+                if ex.code in (500, 502, 503, 504) and batch > 50:
+                    batch //= 2; chunk = ids[i:i + batch]; sys.stderr.write(f"  wikidata batch → {batch}\n")
+                    continue
+                time.sleep(retry_after_s(ex, 5 * 2 ** attempt))
             except Exception as ex:  # pragma: no cover
-                sys.stderr.write(f"  wikidata attempt {attempt + 1}: {ex}\n"); rows = []; time.sleep(10)
+                sys.stderr.write(f"  wikidata attempt {attempt + 1}: {ex}\n")
+                time.sleep(5 * 2 ** attempt)
+        if rows is None:
+            errors += 1
+            if errors >= 3:
+                sys.stderr.write("  wikidata: 3 consecutive failures — giving up on the rest (sizes from OSM only)\n")
+                break
+            i += batch
+            continue
         for b in rows:
             qid = b["item"]["value"].rsplit("/", 1)[1]
             d = out.setdefault(qid, {})
             for k in ("daily", "annual", "visitors", "capacity", "platforms", "students", "beds"):
-                if k in b:
+                if k in b and b[k].get("value") not in (None, ""):
                     try:
                         d[k] = max(d.get(k, 0.0), float(b[k]["value"]))
                     except ValueError:
                         pass
-            if "iata" in b:
+            if "iata" in b and b["iata"].get("value"):
                 d["iata"] = b["iata"]["value"]
-        time.sleep(1)
+        i += batch
+        time.sleep(1.5)
     return out
 
 
@@ -206,9 +318,8 @@ def bake(city, out_dir, overrides):
         lat = e.get("lat") or (e.get("center") or {}).get("lat"); lon = e.get("lon") or (e.get("center") or {}).get("lon")
         geom = e.get("geometry")
         area = ring_area_m2([(p["lat"], p["lon"]) for p in geom]) if e["type"] == "way" and geom else 0.0
-        if e["type"] == "relation":
-            # multipolygon: footprint = Σ outer rings; position = centroid of the LARGEST outer ring (a university
-            # relation spanning several sites must sit on its main campus, not on the mean of all sites)
+        if e["type"] == "relation" and geom:
+            # legacy "out center geom" answer: footprint = Σ outer rings; position = centroid of the LARGEST outer ring
             rings = [[(p["lat"], p["lon"]) for p in m["geometry"]] for m in e.get("members", [])
                      if m.get("type") == "way" and m.get("role") in ("outer", "") and m.get("geometry")]
             areas = [ring_area_m2(r) for r in rings]
@@ -216,6 +327,14 @@ def bake(city, out_dir, overrides):
                 area = sum(areas)
                 big = rings[max(range(len(rings)), key=lambda i: areas[i])]
                 lat = sum(c[0] for c in big) / len(big); lon = sum(c[1] for c in big) / len(big)
+        b = e.get("bounds")
+        if b and (lat is None or lon is None):
+            lat = (b["minlat"] + b["maxlat"]) / 2; lon = (b["minlon"] + b["maxlon"]) / 2
+        if b and not area:
+            # "out tags bb": footprint ≈ 0.65 × the bounding rectangle (a building/campus fills about two thirds of its box)
+            dlat = (b["maxlat"] - b["minlat"]) * 111_320.0
+            dlon = (b["maxlon"] - b["minlon"]) * 111_320.0 * math.cos(math.radians((b["minlat"] + b["maxlat"]) / 2))
+            area = 0.65 * dlat * dlon
         if (lat is None or lon is None) and geom:
             lat = sum(p["lat"] for p in geom) / len(geom); lon = sum(p["lon"] for p in geom) / len(geom)
         if lat is None or lon is None:
