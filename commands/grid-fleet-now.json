@@ -1,0 +1,14 @@
+{
+  "id": "grid-fleet-now",
+  "nonce": "2026-10-05b",
+  "note": "second GHSL run right away instead of waiting for the 3-hour slot",
+  "cmd": [
+    "python3",
+    "fleet/ghsl_fleet.py",
+    "--budget-minutes",
+    "45",
+    "--max-cities",
+    "150"
+  ],
+  "timeout_minutes": 50
+}
