@@ -6,9 +6,9 @@
     <key>ProgramArguments</key>
     <array>
         <string>__PYTHON__</string>
-        <string>__HOME__/metroline-ops/agent/ops_agent.py</string>
+        <string>__STATE__/launcher.py</string>
     </array>
-    <key>WorkingDirectory</key><string>__HOME__/metroline-ops</string>
+    <key>WorkingDirectory</key><string>__STATE__</string>
     <key>StartInterval</key><integer>600</integer>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><false/>
@@ -17,13 +17,18 @@
     <key>LowPriorityIO</key><true/>
     <key>ExitTimeOut</key><integer>120</integer>
     <key>ThrottleInterval</key><integer>60</integer>
-    <key>StandardOutPath</key><string>__HOME__/metroline-ops-state/launchd.out.log</string>
-    <key>StandardErrorPath</key><string>__HOME__/metroline-ops-state/launchd.err.log</string>
+    <key>StandardOutPath</key><string>__STATE__/launchd.out.log</string>
+    <key>StandardErrorPath</key><string>__STATE__/launchd.err.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin</string>
         <key>HOME</key><string>__HOME__</string>
         <key>LANG</key><string>en_US.UTF-8</string>
+        <key>METROLINE_OPS_REPO</key><string>__HOME__/metroline-ops</string>
+        <key>METROLINE_OPS_STATE</key><string>__STATE__</string>
+        <key>METROLINE_DATA</key><string>__HOME__/metroline-data/demand</string>
+        <key>METROLINE_GIT</key><string>__GIT__</string>
+        <key>METROLINE_LAUNCH</key><string>__LAUNCH__</string>
     </dict>
 </dict>
 </plist>

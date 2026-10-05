@@ -74,17 +74,32 @@ def retry_after_s(ex, default):
         return default
 
 
+# Wall-clock limit set by the fleet (epoch seconds): no retry or sleep may be scheduled past it, so a run
+# ends before the agent's timeout kills it mid-write. None = no limit (manual runs).
+DEADLINE = None
+
+
+def time_left():
+    return float("inf") if DEADLINE is None else DEADLINE - time.time()
+
+
 class OverpassBusy(Exception):
-    """Overpass refused the query for load reasons (429 rate-limited / 504 dispatcher busy) on every attempt: the
-    caller should stop the run and come back later, not hammer the mirror."""
+    """Overpass refused the query for load reasons (429 rate-limited / 504 dispatcher busy / timeouts) on every
+    attempt, or the run's deadline leaves no room for another attempt: the caller should stop the run and come
+    back later, not hammer the mirror."""
+
+
+class WikidataRefused(Exception):
+    """Wikidata answered 403: the User-Agent is blocked. Stop the run; retrying would make it worse."""
 
 
 OVERPASS_STATUS = "https://overpass-api.de/api/status"
+_overpass_dead = set()   # mirrors that timed out in this process: not tried again this run
 
 
-def overpass_wait_for_slot(max_polls=5):
+def overpass_wait_for_slot(max_polls=5, max_wait=180):
     """Overpass fair use: ask /api/status for a free slot before each query (no Retry-After is ever sent). Returns
-    the seconds waited. Any failure to read the status is ignored (the query itself will tell)."""
+    the seconds waited (capped). Any failure to read the status is ignored (the query itself will tell)."""
     waited = 0.0
     for _ in range(max_polls):
         try:
@@ -99,6 +114,8 @@ def overpass_wait_for_slot(max_polls=5):
         waits = [int(x) for x in re.findall(r"in (\d+) seconds", txt)]
         pause = (min(waits) + 2) if waits else 20
         pause = min(max(pause, 2), 120)
+        if waited + pause > max_wait or pause > time_left():
+            return waited
         time.sleep(pause)
         waited += pause
     return waited
@@ -108,7 +125,8 @@ def overpass(bbox, retries=3):
     """One request per city: tags + bounds only ("out tags bb qt"). Measured on the exact selection: the runtime is
     the bbox selection, not the output, and geometry doubles the bytes for nothing (the footprint estimate below
     uses the bounds). [timeout:60][maxsize:128 MiB]: the dispatcher admits a query only if its declared budget is
-    at most half of what is free, so the defaults (180 s / 512 MiB) get 504 under load."""
+    at most half of what is free, so the defaults (180 s / 512 MiB) get 504 under load. Returns the element list
+    or raises OverpassBusy (never returns None)."""
     s, w, n, e = bbox[0], bbox[1], bbox[2], bbox[3]
     bb = f"({s},{w},{n},{e})"
     big = (n - s) * (e - w) > 0.2
@@ -119,76 +137,51 @@ nwr["leisure"="stadium"]["name"]{bb};
 nwr["amenity"~"^(university|hospital|conference_centre)$"]["name"]{bb};
 nwr["shop"="mall"]["name"]{bb};
 );out tags bb qt;"""
-    busy = 0
+    body = ("data=" + urllib.parse.quote(q)).encode()
+    load_errors = 0
     for attempt in range(retries):
         overpass_wait_for_slot()
         for ep in OVERPASS:
+            if ep in _overpass_dead:
+                continue
+            primary = ep == OVERPASS[0]
+            # client timeout = declared query timeout + transfer margin on the primary; a mirror that hangs is
+            # given 60 s once and then skipped for the rest of the process
+            timeout = (130 if big else 100) if primary else 60
+            if timeout > time_left():
+                raise OverpassBusy("run deadline reached before the next Overpass attempt")
             try:
-                return http_json(ep, data=("data=" + urllib.parse.quote(q)).encode(), timeout=150)["elements"]
+                return http_json(ep, data=body, timeout=timeout)["elements"]
             except urllib.error.HTTPError as ex:  # pragma: no cover
                 sys.stderr.write(f"  overpass {ep} attempt {attempt + 1}: HTTP {ex.code}\n")
                 if ex.code == 400:
                     raise RuntimeError("Overpass rejected the query (400) — a bug, not load")
                 if ex.code in (429, 503, 504):
-                    busy += 1
+                    load_errors += 1
+                elif not primary:
+                    _overpass_dead.add(ep)
             except Exception as ex:  # pragma: no cover
                 sys.stderr.write(f"  overpass {ep} attempt {attempt + 1}: {ex}\n")
-                busy += 1   # a read timeout is a load symptom too
-        time.sleep(60 * (attempt + 1))
-    raise OverpassBusy(f"Overpass unavailable after {retries} attempts ({busy} load errors)")
-
-
-def retry_after_s(ex, default):
-    """Honour a Retry-After header (delta-seconds) on 429/503, else the given default."""
-    try:
-        v = ex.headers.get("Retry-After") if getattr(ex, "headers", None) else None
-        return max(default, float(v)) if v and v.strip().isdigit() else default
-    except Exception:
-        return default
-
-
-class OverpassBusy(Exception):
-    """Every Overpass endpoint answered 429/504 on every attempt: the caller should back off, not retry at once."""
-
-
-def overpass(bbox, retries=3):
-    s, w, n, e = bbox[0], bbox[1], bbox[2], bbox[3]
-    bb = f"({s},{w},{n},{e})"
-    q = f"""[out:json][timeout:120];(
-nwr["aeroway"="aerodrome"]["name"]{bb};
-nwr["railway"="station"]["name"]{bb};
-nwr["leisure"="stadium"]["name"]{bb};
-nwr["amenity"="university"]["name"]{bb};
-nwr["amenity"="hospital"]["name"]{bb};
-nwr["shop"="mall"]["name"]{bb};
-nwr["amenity"="conference_centre"]["name"]{bb};
-);out center geom;"""   # NOT "out tags": that verbosity drops relation members/centers
-    busy_only = True
-    for attempt in range(retries):
-        for ep in OVERPASS:
-            try:
-                return http_json(ep, data=("data=" + urllib.parse.quote(q)).encode())["elements"]
-            except urllib.error.HTTPError as ex:  # pragma: no cover
-                sys.stderr.write(f"  overpass {ep} attempt {attempt + 1}: HTTP {ex.code}\n")
-                if ex.code not in (429, 504, 503):
-                    busy_only = False
-            except Exception as ex:  # pragma: no cover
-                sys.stderr.write(f"  overpass {ep} attempt {attempt + 1}: {ex}\n")
-                busy_only = False
-        time.sleep(20 * (attempt + 1))
-    if busy_only:
-        raise OverpassBusy("all Overpass endpoints busy (429/503/504)")
-    return None
+                load_errors += 1   # a read timeout is a load symptom too
+                if not primary:
+                    _overpass_dead.add(ep)
+        if attempt < retries - 1:
+            pause = 30 * (attempt + 1)
+            if pause > time_left():
+                raise OverpassBusy("run deadline reached while backing off from Overpass")
+            time.sleep(pause)
+    raise OverpassBusy(f"Overpass unavailable after {retries} attempts ({load_errors} load errors)")
 
 
 def wikidata(ids):
-    """Size signals of the OSM elements' Wikidata items, one POST per WIKIDATA_BATCH ids, strictly serial.
-    GROUP BY ?item with MAX()/SAMPLE() so multi-valued properties do not cross-multiply the rows."""
+    """Size signals of the OSM elements' Wikidata items, one POST per batch, strictly serial. GROUP BY ?item with
+    MAX()/SAMPLE() so multi-valued properties do not cross-multiply the rows. A 5xx halves the batch and retries
+    the SAME ids after the back-off; ids advance only after a definitive answer or give-up for that chunk."""
     out = {}
     ids = sorted(set(ids))
     batch = WIKIDATA_BATCH
     i = 0
-    errors = 0
+    consecutive_failures = 0
     while i < len(ids):
         chunk = ids[i:i + batch]
         q = ("SELECT ?item (MAX(?daily_) AS ?daily) (MAX(?annual_) AS ?annual) (MAX(?visitors_) AS ?visitors) "
@@ -199,31 +192,45 @@ def wikidata(ids):
              "OPTIONAL{?item wdt:P1083 ?capacity_.} OPTIONAL{?item wdt:P1103 ?platforms_.} OPTIONAL{?item wdt:P2196 ?students_.} "
              "OPTIONAL{?item wdt:P6801 ?beds_.} OPTIONAL{?item wdt:P238 ?iata_.} } GROUP BY ?item")
         rows = None
+        halved = False
         for attempt in range(5):
+            if 70 > time_left():
+                sys.stderr.write("  wikidata: run deadline reached — the remaining items keep their OSM-only sizes\n")
+                return out
             try:
                 rows = http_json(WIKIDATA, data=("query=" + urllib.parse.quote(q)).encode(), timeout=70,
                                  headers={"Accept": "application/sparql-results+json",
                                           "Content-Type": "application/x-www-form-urlencoded"})["results"]["bindings"]
-                errors = 0
                 break
             except urllib.error.HTTPError as ex:  # pragma: no cover
                 sys.stderr.write(f"  wikidata attempt {attempt + 1}: HTTP {ex.code}\n")
                 if ex.code == 403:
-                    raise RuntimeError("Wikidata refused the User-Agent (403) — stop, do not retry")
+                    raise WikidataRefused("Wikidata refused the User-Agent (403) — stop, do not retry")
+                pause = retry_after_s(ex, 5 * 2 ** attempt)
                 if ex.code in (500, 502, 503, 504) and batch > 50:
-                    batch //= 2; chunk = ids[i:i + batch]; sys.stderr.write(f"  wikidata batch → {batch}\n")
-                    continue
-                time.sleep(retry_after_s(ex, 5 * 2 ** attempt))
+                    batch //= 2
+                    sys.stderr.write(f"  wikidata batch → {batch}\n")
+                    halved = True
+                    if pause <= time_left():
+                        time.sleep(pause)
+                    break   # rebuild the query with the smaller chunk, same i
+                if attempt < 4 and pause <= time_left():
+                    time.sleep(pause)
             except Exception as ex:  # pragma: no cover
                 sys.stderr.write(f"  wikidata attempt {attempt + 1}: {ex}\n")
-                time.sleep(5 * 2 ** attempt)
+                pause = 5 * 2 ** attempt
+                if attempt < 4 and pause <= time_left():
+                    time.sleep(pause)
+        if halved and rows is None:
+            continue   # retry the same ids with the halved batch
         if rows is None:
-            errors += 1
-            if errors >= 3:
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
                 sys.stderr.write("  wikidata: 3 consecutive failures — giving up on the rest (sizes from OSM only)\n")
                 break
-            i += batch
+            i += len(chunk)
             continue
+        consecutive_failures = 0
         for b in rows:
             qid = b["item"]["value"].rsplit("/", 1)[1]
             d = out.setdefault(qid, {})
@@ -235,8 +242,9 @@ def wikidata(ids):
                         pass
             if "iata" in b and b["iata"].get("value"):
                 d["iata"] = b["iata"]["value"]
-        i += batch
-        time.sleep(1.5)
+        i += len(chunk)
+        if i < len(ids):
+            time.sleep(1.5)
     return out
 
 
@@ -272,19 +280,27 @@ def meters(a, b):
     return 2 * R * math.asin(min(1, math.sqrt(h)))
 
 
+def fold(name):
+    """Script-agnostic folding: NFKC + casefold, Latin diacritics stripped, everything that is not a word character
+    dropped — so 'Barcelona - Sants' == 'Barcelona-Sants' and a Chinese or Arabic name keeps its characters (the old
+    ASCII-only fold made every non-Latin name empty and merged unrelated places)."""
+    n = unicodedata.normalize("NFKC", name or "").casefold()
+    n = "".join(ch for ch in unicodedata.normalize("NFKD", n) if not unicodedata.combining(ch))
+    return n
+
+
 def institution_key(name):
     """'Università di Torino - Dipartimento di Fisica' → 'universita di torino' (the part before a separator)."""
-    n = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+    n = fold(name)
     n = re.split(r"\s[-–—:(]\s?|\s[-–—:(]|,", n)[0]
     n = re.sub(r"\b(dipartimento|facolta|sede|campus|aule?|segreteria|biblioteca|laboratorio|ufficio|polo|edificio|padiglione)\b.*", "", n)
-    n = re.sub(r"[^a-z0-9 ]", " ", n)
+    n = re.sub(r"[\W_]+", " ", n)
     return re.sub(r"\s+", " ", n).strip()
 
 
 def norm_name(name):
-    """Override / duplicate key: lower-case, no accents, letters and digits only ('Barcelona - Sants' == 'Barcelona-Sants')."""
-    n = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
-    return re.sub(r"[^a-z0-9]", "", n)
+    """Override / duplicate key: folded, word characters only."""
+    return re.sub(r"[\W_]+", "", fold(name))
 
 
 def num(t, *keys):
@@ -301,13 +317,19 @@ def num(t, *keys):
 def bake(city, out_dir, overrides):
     cid, bbox = city["id"], city["bbox"]
     cache = os.path.join(out_dir, f"poi_{cid}.osm.json")
+    els = None
     if os.path.exists(cache):
-        els = json.load(open(cache)); print(f"  OSM: {len(els)} elements (cached)")
-    else:
-        els = overpass(bbox)
-        if els is None:
-            print("  WARNING: Overpass failed — skipped"); return None
-        os.makedirs(out_dir, exist_ok=True); json.dump(els, open(cache, "w"))
+        try:
+            els = json.load(open(cache)); print(f"  OSM: {len(els)} elements (cached)")
+        except (ValueError, OSError) as ex:
+            print(f"  OSM cache unreadable ({ex}) — refetching")
+            os.remove(cache)
+    if els is None:
+        els = overpass(bbox)   # raises OverpassBusy when the mirrors are saturated
+        os.makedirs(out_dir, exist_ok=True)
+        with open(cache + ".tmp", "w") as f:
+            json.dump(els, f)
+        os.replace(cache + ".tmp", cache)
         print(f"  OSM: {len(els)} elements")
 
     raws = []
@@ -341,8 +363,14 @@ def bake(city, out_dir, overrides):
             lat = sum(p["lat"] for p in geom) / len(geom); lon = sum(p["lon"] for p in geom) / len(geom)
         if lat is None or lon is None:
             continue
+        # A relation whose box spans more than 1.5 km (a university with several sites, a hospital trust) has no
+        # single door: it may only ENRICH a group anchored by one of its buildings, never anchor one itself.
+        multisite = False
+        if e["type"] == "relation" and b:
+            diag = meters((b["minlat"], b["minlon"]), (b["maxlat"], b["maxlon"]))
+            multisite = diag > 1500
         raws.append(dict(id=f"{e['type']}/{e['id']}", type=ty, name=t.get("name", ty), lat=lat, lon=lon,
-                         wd=t.get("wikidata"), iata=t.get("iata"), area=area,
+                         wd=t.get("wikidata"), iata=t.get("iata"), area=area, multisite=multisite,
                          capacity=num(t, "capacity", "seats"), beds=num(t, "beds", "hospital:beds")))
 
     wd = wikidata([r["wd"] for r in raws if r["wd"] and re.match(r"^Q\d+$", r["wd"])])
@@ -350,24 +378,36 @@ def bake(city, out_dir, overrides):
 
     # --- merge elements of the same institution (same wikidata id, or same key within 400 m) ---
     groups = []
-    for r in sorted(raws, key=lambda r: (-(r["area"] or 0), r["id"])):
+    dropped_multisite = 0
+    for r in sorted(raws, key=lambda r: (1 if r.get("multisite") else 0, -(r["area"] or 0), r["id"])):
         key = institution_key(r["name"]) if r["type"] in ("university", "hospital") else None
+        nn = norm_name(r["name"])
         placed = False
         for g in groups:
             if g["type"] != r["type"]:
                 continue
             same_wd = r["wd"] and g["wd"] and r["wd"] == g["wd"]
-            close = meters((r["lat"], r["lon"]), (g["lat"], g["lon"])) < 400
-            same_key = key and g["key"] == key and close
+            # a multi-site relation joins by identity (wikidata) or by name anywhere inside its own box
+            close = r.get("multisite") or meters((r["lat"], r["lon"]), (g["lat"], g["lon"])) < 400
+            same_key = bool(key) and g["key"] == key and close
             # the same place mapped twice (node + area, or way + relation): same name within 400 m
-            same_name = norm_name(r["name"]) == norm_name(g["name"]) and close
+            same_name = bool(nn) and nn == norm_name(g["name"]) and close
             if same_wd or same_key or same_name:
-                g["members"].append(r); g["area"] = max(g["area"], r["area"] or 0)
+                g["members"].append(r)
+                if not r.get("multisite"):
+                    g["area"] = max(g["area"], r["area"] or 0)
                 if not g["wd"] and r["wd"]: g["wd"] = r["wd"]
+                if not g["capacity"] and r["capacity"]: g["capacity"] = r["capacity"]
+                if not g["beds"] and r["beds"]: g["beds"] = r["beds"]
                 placed = True; break
         if not placed:
+            if r.get("multisite"):
+                dropped_multisite += 1
+                continue
             groups.append(dict(type=r["type"], key=key, wd=r["wd"], lat=r["lat"], lon=r["lon"], area=r["area"] or 0,
                                name=r["name"], id=r["id"], iata=r["iata"], capacity=r["capacity"], beds=r["beds"], members=[r]))
+    if dropped_multisite:
+        print(f"  multi-site relations without a building of their own: {dropped_multisite} dropped")
 
     pois, dropped = [], {}
     ov_by_wd = {o["wikidata"]: o for o in overrides if o.get("wikidata")}
