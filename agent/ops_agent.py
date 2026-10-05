@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import select
 import os
 import platform
 import shutil
@@ -127,53 +128,68 @@ def resolve_cmd(cmd) -> list:
 def run(cmd, timeout=600, log_path=None, heartbeat=None):
     """Run a command with the repo as cwd; stream its output to `log_path`; call `heartbeat()` every 5 minutes while
     it runs. Returns (rc, output_tail). Never raises (124 = timeout, 127 = could not start)."""
-    out_chunks = []
+    buf = bytearray()
+    lf = None
     try:
         argv = resolve_cmd(cmd)
         lf = open(log_path, "ab") if log_path else None
-        try:
-            p = subprocess.Popen(argv, cwd=REPO, env=job_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            os.set_blocking(p.stdout.fileno(), False)
-            started = time.time()
-            last_beat = started
-            while True:
-                try:
-                    chunk = p.stdout.read()
-                except (BlockingIOError, TypeError):
-                    chunk = None
-                if chunk:
-                    out_chunks.append(chunk)
-                    if len(out_chunks) > 400:
-                        out_chunks[:] = [b"".join(out_chunks)[-64 * 1024:]]
-                    if lf:
-                        lf.write(chunk); lf.flush()
-                if p.poll() is not None:
-                    rest = p.stdout.read()
-                    if rest:
-                        out_chunks.append(rest)
-                        if lf:
-                            lf.write(rest); lf.flush()
-                    break
-                if time.time() - started > timeout:
-                    p.kill()
-                    p.wait(10)
-                    out_chunks.append(f"\n[timeout after {timeout}s]\n".encode())
-                    if lf:
-                        lf.write(out_chunks[-1])
-                    return 124, b"".join(out_chunks)[-8000:].decode("utf-8", "replace")
-                if heartbeat and time.time() - last_beat > HEARTBEAT_S:
-                    last_beat = time.time()
-                    try:
-                        heartbeat()
-                    except Exception:
-                        pass
-                time.sleep(0.5)
-            return p.returncode, b"".join(out_chunks)[-8000:].decode("utf-8", "replace")
-        finally:
+        p = subprocess.Popen(argv, cwd=REPO, env=job_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        fd = p.stdout.fileno()
+        started = time.time()
+        last_beat = started
+        timed_out = False
+
+        def drain(wait):
+            r, _, _ = select.select([fd], [], [], wait)
+            if not r:
+                return True
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                return False   # EOF
+            buf.extend(chunk)
+            if len(buf) > 128 * 1024:
+                del buf[:-64 * 1024]
             if lf:
-                lf.close()
+                lf.write(chunk); lf.flush()
+            return True
+
+        while True:
+            alive = drain(0.5)
+            if not alive and p.poll() is not None:
+                break
+            if p.poll() is not None and not alive:
+                break
+            if not timed_out and time.time() - started > timeout:
+                timed_out = True
+                p.kill()
+                note = f"\n[timeout after {timeout}s]\n".encode()
+                buf.extend(note)
+                if lf:
+                    lf.write(note)
+            if timed_out and p.poll() is not None:
+                while drain(0.2):
+                    if p.stdout.closed:
+                        break
+                    if not select.select([fd], [], [], 0)[0]:
+                        break
+                break
+            if heartbeat and time.time() - last_beat > HEARTBEAT_S:
+                last_beat = time.time()
+                try:
+                    heartbeat()
+                except Exception:
+                    pass
+        try:
+            p.wait(10)
+        except Exception:
+            pass
+        rc = 124 if timed_out else p.returncode
+        return rc, bytes(buf[-8000:]).decode("utf-8", "replace")
     except Exception as e:  # noqa: BLE001
-        return 127, (b"".join(out_chunks)[-4000:].decode("utf-8", "replace") + f"\n[failed to start: {e}]\n")
+        return 127, (bytes(buf[-4000:]).decode("utf-8", "replace") + f"\n[failed to start: {e}]\n")
+    finally:
+        if lf:
+            lf.close()
 
 
 def git_sha() -> str:

@@ -52,7 +52,7 @@ def main():
         else:
             rc, out = git("merge", "--ff-only", "--quiet", "origin/main")
             if rc != 0:
-                rc2, dirty = git("status", "--porcelain")
+                rc2, dirty = git("status", "--porcelain", "--untracked-files=no")
                 if rc2 == 0 and not dirty:
                     rc3, out3 = git("reset", "--hard", "origin/main")
                     info["update"] = "reset to origin/main (history rewritten upstream)" if rc3 == 0 else f"reset failed: {out3[-300:]}"
