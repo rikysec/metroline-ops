@@ -1,0 +1,5 @@
+# Raster I/O for the GHSL/terrain fleet on the data host (Xcode CLT python 3.9.6, Apple Silicon, no sudo).
+# rasterio 1.4.3 is the last release with cp39 macOS arm64 wheels (bundles GDAL 3.9.3 + PROJ 9.4.1, /vsicurl + /vsizip);
+# numpy 2.0.2 is the last cp39 line. Installed with --only-binary :all: so a missing wheel fails fast.
+numpy==2.0.2
+rasterio==1.4.3

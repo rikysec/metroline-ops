@@ -1,0 +1,157 @@
+{
+ "_doc": "The 8 cities baked by hand before the fleet (grid/terrain live in the fixtures and on the host): kept verbatim in cities.json, never re-baked by the fleet; employmentTotal = the calibrated totals of tools/ghsl-bake/cities.config.json.",
+ "cities": [
+  {
+   "id": "barcelona",
+   "name": "Barcelona",
+   "country": "ES",
+   "center": [
+    41.4,
+    2.15
+   ],
+   "bbox": [
+    41.33,
+    2.05,
+    41.47,
+    2.25
+   ],
+   "population": 2463181,
+   "areaKm2": 260.274,
+   "densityPerKm2": 9463.8,
+   "employmentTotal": 1100000
+  },
+  {
+   "id": "london",
+   "name": "London",
+   "country": "GB",
+   "center": [
+    51.51,
+    -0.135
+   ],
+   "bbox": [
+    51.4,
+    -0.35,
+    51.62,
+    0.08
+   ],
+   "population": 4686214,
+   "areaKm2": 729.612,
+   "densityPerKm2": 6422.9,
+   "employmentTotal": 4000000
+  },
+  {
+   "id": "madrid",
+   "name": "Madrid",
+   "country": "ES",
+   "center": [
+    40.43,
+    -3.7
+   ],
+   "bbox": [
+    40.36,
+    -3.78,
+    40.5,
+    -3.62
+   ],
+   "population": 2585916,
+   "areaKm2": 211.297,
+   "densityPerKm2": 12238.3,
+   "employmentTotal": 1600000
+  },
+  {
+   "id": "milano",
+   "name": "Milano",
+   "country": "IT",
+   "center": [
+    45.47,
+    9.175
+   ],
+   "bbox": [
+    45.38,
+    9.05,
+    45.56,
+    9.3
+   ],
+   "population": 1655407,
+   "areaKm2": 391.068,
+   "densityPerKm2": 4233.0,
+   "employmentTotal": 1050000
+  },
+  {
+   "id": "newyork",
+   "name": "New York",
+   "country": "US",
+   "center": [
+    40.75,
+    -73.95
+   ],
+   "bbox": [
+    40.6,
+    -74.05,
+    40.9,
+    -73.85
+   ],
+   "population": 5784371,
+   "areaKm2": 563.271,
+   "densityPerKm2": 10269.2,
+   "employmentTotal": 2500000
+  },
+  {
+   "id": "paris",
+   "name": "Paris",
+   "country": "FR",
+   "center": [
+    48.835,
+    2.35
+   ],
+   "bbox": [
+    48.72,
+    2.2,
+    48.95,
+    2.5
+   ],
+   "population": 5212491,
+   "areaKm2": 562.824,
+   "densityPerKm2": 9261.3,
+   "employmentTotal": 1800000
+  },
+  {
+   "id": "roma",
+   "name": "Roma",
+   "country": "IT",
+   "center": [
+    41.885,
+    12.5
+   ],
+   "bbox": [
+    41.8,
+    12.4,
+    41.97,
+    12.6
+   ],
+   "population": 1680848,
+   "areaKm2": 313.677,
+   "densityPerKm2": 5358.5,
+   "employmentTotal": 1500000
+  },
+  {
+   "id": "torino",
+   "name": "Torino",
+   "country": "IT",
+   "center": [
+    45.065,
+    7.665
+   ],
+   "bbox": [
+    45.0,
+    7.58,
+    45.13,
+    7.75
+   ],
+   "population": 881218,
+   "areaKm2": 193.433,
+   "densityPerKm2": 4555.7,
+   "employmentTotal": 420000
+  }
+ ]
+}

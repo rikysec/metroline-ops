@@ -240,11 +240,13 @@ class Status:
         self.doc = {"agent": AGENT_VERSION, "tick": now_iso(), "repo_sha": git_sha(), "launcher": launcher,
                     "host": host_info(), "jobs": {}, "commands": [], "errors": [],
                     "fleet": read_json(os.path.join(STATE, "poi_fleet_summary.json"), None),
+                    "grid_fleet": read_json(os.path.join(STATE, "ghsl_fleet_summary.json"), None),
                     "health": read_json(os.path.join(STATE, "health.json"), None)}
 
     def publish(self):
         self.doc["heartbeat"] = now_iso()
         self.doc["fleet"] = read_json(os.path.join(STATE, "poi_fleet_summary.json"), None)
+        self.doc["grid_fleet"] = read_json(os.path.join(STATE, "ghsl_fleet_summary.json"), None)
         self.doc["health"] = read_json(os.path.join(STATE, "health.json"), None)
         os.makedirs(OPS_PUB, exist_ok=True)
         write_json_atomic(os.path.join(OPS_PUB, "status.json"), self.doc)

@@ -19,6 +19,21 @@
       "note": "POI layers of the top-1000 cities: ≤35 cities per run, two runs a day (Overpass fair use: ~70 queries/day), every city refreshed every 90 days"
     },
     {
+      "id": "grid_fleet",
+      "enabled": true,
+      "every_minutes": 180,
+      "timeout_minutes": 58,
+      "cmd": [
+        "python3",
+        "fleet/ghsl_fleet.py",
+        "--budget-minutes",
+        "50",
+        "--max-cities",
+        "60"
+      ],
+      "note": "GHSL demand grids + terrain (GLO-30 + WorldCover water) for the top-1000 cities: ≤60 cities per run, every 3 h, tile-first; the 8 hand-baked cities are never touched"
+    },
+    {
       "id": "health",
       "enabled": true,
       "every_minutes": 10,

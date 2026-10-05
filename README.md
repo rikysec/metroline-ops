@@ -86,12 +86,35 @@ Fair-use note: the OSM wiki asks heavy or commercial users to self-host Overpass
 "does not disturb" envelope; if the daily volume ever has to grow (hourly refresh, more categories), the plan is a
 self-hosted Overpass with regional extracts on the same Mac rather than more load on the public mirrors.
 
+## The GHSL fleet (demand grids + terrain for the same 1000 cities)
+
+`fleet/ghsl_fleet.py` (job `grid_fleet`, every 3 h, ≤60 cities per 50-minute run) bakes for every city of
+`cities_top1000.json` the two files the Pro simulation reads: `grid_<id>.json.gz` (residents from GHS-POP E2025
+R2023A, jobs from GHS-BUILT-V NRES, 100 m cells on the city bbox) and `terrain_<id>.json.gz` (Copernicus GLO-30
+elevation averaged to 100 m with a 3×3 minimum; water = ESA WorldCover 2021 class 80 ≥ 20 % of the cell OR the
+GLO-30 water body mask ≥ 10 %, plus sea where the DEM is ≤ 0). It is tile-first: the 348 GHSL WGS84 tiles
+(`ghsl_tiles_4326.json`) are downloaded once each from the JRC (POP up to ~340 MB, NRES ≤ 15 MB, resumable, 3 GB
+LRU cache in `~/metroline-ops-state/ghsl_tiles`) and every queued city of a tile is baked from local windows, so a
+whole tile of cities costs one download. Terrain reads GLO-30/WorldCover windows over HTTPS (AWS Open Data, no keys,
+no Overpass). The 8 hand-baked cities (`cities.pinned.json`) are never touched and keep their calibrated job totals;
+every other city's job total is `Σresidents × (1 − share 0–14) × employment-to-population ratio × 1.4` from two World
+Bank series cached for a year (`worldbank.json`). `cities.json` is rebuilt after every city: the 8 pinned entries
+verbatim first, then the baked ones in the same `CityInfo` shape, so the app's catalogue simply grows.
+
+Raster I/O needs numpy + rasterio: on first run the script creates `~/metroline-ops-state/venv` from the Command Line
+Tools' python 3.9 with the pinned wheels of `fleet/requirements-bake.txt` (rasterio 1.4.3 = GDAL 3.9.3, numpy
+2.0.2 — the last cp39 releases) and re-executes itself inside it; a broken venv (Xcode moved) is rebuilt. Validated
+on the dev Mac: Torino's grid comes out byte-identical to the hand bake (tiles are pixel-aligned with the global
+mosaic) and its terrain has 843 water cells against 862 from the OSM version. Status: `status.json → grid_fleet`.
+
 ## Files the Mac publishes
 
 ```
 demand/poi_cities.json                 catalogue (compact JSON, ~200 KB): id, name, names, country, lat, lon, radiusKm,
                                        population, rank, generated (null = not baked yet), count, visitorsPerDay
 demand/poi_<id>.json.gz                one per baked city (schemaVersion 1, see subwayios/Subway/PoiLayer.swift)
-demand/_ops/status.json                agent heartbeat: tick, repo_sha, host, jobs, commands, fleet summary
+demand/cities.json                     GHSL catalogue (CityInfo): the 8 hand-baked cities + every city baked by the GHSL fleet
+demand/grid_<id>.json.gz, terrain_<id>.json.gz   one pair per baked city
+demand/_ops/status.json                agent heartbeat: tick, repo_sha, host, jobs, commands, fleet + grid_fleet summaries
 demand/_ops/log.txt, _ops/jobs/*.log   tails
 ```
