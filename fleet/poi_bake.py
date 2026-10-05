@@ -331,10 +331,12 @@ def bake(city, out_dir, overrides):
         if b and (lat is None or lon is None):
             lat = (b["minlat"] + b["maxlat"]) / 2; lon = (b["minlon"] + b["maxlon"]) / 2
         if b and not area:
-            # "out tags bb": footprint ≈ 0.65 × the bounding rectangle (a building/campus fills about two thirds of its box)
+            # "out tags bb": footprint from the bounding rectangle × the polygon/box ratio measured on the 8 cities'
+            # geometry answers (1 105 ways: median 0.54; 172 multipolygon relations: median 0.44, mean 0.40 — a
+            # campus relation's box spans several buildings).
             dlat = (b["maxlat"] - b["minlat"]) * 111_320.0
             dlon = (b["maxlon"] - b["minlon"]) * 111_320.0 * math.cos(math.radians((b["minlat"] + b["maxlat"]) / 2))
-            area = 0.65 * dlat * dlon
+            area = (0.40 if e["type"] == "relation" else 0.55) * dlat * dlon
         if (lat is None or lon is None) and geom:
             lat = sum(p["lat"] for p in geom) / len(geom); lon = sum(p["lon"] for p in geom) / len(geom)
         if lat is None or lon is None:

@@ -14,6 +14,9 @@
     <key>KeepAlive</key><false/>
     <key>ProcessType</key><string>Background</string>
     <key>Nice</key><integer>10</integer>
+    <key>LowPriorityIO</key><true/>
+    <key>ExitTimeOut</key><integer>120</integer>
+    <key>ThrottleInterval</key><integer>60</integer>
     <key>StandardOutPath</key><string>__HOME__/metroline-ops-state/launchd.out.log</string>
     <key>StandardErrorPath</key><string>__HOME__/metroline-ops-state/launchd.err.log</string>
     <key>EnvironmentVariables</key>
