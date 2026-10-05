@@ -29,9 +29,9 @@
         "--budget-minutes",
         "50",
         "--max-cities",
-        "60"
+        "150"
       ],
-      "note": "GHSL demand grids + terrain (GLO-30 + WorldCover water) for the top-1000 cities: ≤60 cities per run, every 3 h, tile-first; the 8 hand-baked cities are never touched"
+      "note": "GHSL demand grids + terrain (GLO-30 + WorldCover water) for the top-1000 cities: ≤150 cities per 50-minute run (the first run did 60 in 14 min), every 3 h, tile-first; the 8 hand-baked cities are never touched"
     },
     {
       "id": "health",
