@@ -270,7 +270,7 @@ def run_jobs(state: dict, jobs_cfg, status: Status, deadline: float) -> None:
             if time.time() > deadline:
                 js["status"] = "deferred (tick budget)"
                 continue
-            timeout = int(job.get("timeout_minutes", 55)) * 60
+            timeout = int(float(job.get("timeout_minutes", 55)) * 60)
             argv = resolve_cmd(job["cmd"])   # validates
             log(f"job {jid}: start {' '.join(argv[1:]) if argv[0] == sys.executable else ' '.join(argv)}")
             js["status"] = "running"
@@ -329,7 +329,7 @@ def run_commands(state: dict, status: Status, state_path: str) -> None:
         done[key] = now_iso()
         write_json_atomic(state_path, state)   # recorded first: a killed tick does not re-run the command
         try:
-            timeout = int(spec.get("timeout_minutes", 30)) * 60
+            timeout = int(float(spec.get("timeout_minutes", 30)) * 60)
             log(f"command {name}: start ({spec.get('note', '')})")
             t0 = time.time()
             rc, out = run(spec["cmd"], timeout=timeout, log_path=os.path.join(STATE, "job_commands.log"), heartbeat=status.publish)
