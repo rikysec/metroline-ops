@@ -1,0 +1,420 @@
+[
+  {
+    "city": "torino",
+    "name": "Torino Porta Susa",
+    "wikidata": "Q801271",
+    "visitorsPerDay": 60000,
+    "note": "RFI/GTT: ~25 M pax/anno; Wikidata senza P1373"
+  },
+  {
+    "city": "torino",
+    "name": "Torino Lingotto",
+    "visitorsPerDay": 15000,
+    "note": "RFI: stazione silver, ~5 M pax/anno"
+  },
+  {
+    "city": "torino",
+    "name": "Torino Stura",
+    "visitorsPerDay": 4000
+  },
+  {
+    "city": "torino",
+    "name": "Torino Rebaudengo Fossata",
+    "visitorsPerDay": 4000
+  },
+  {
+    "city": "torino",
+    "name": "Torino Dora",
+    "visitorsPerDay": 2000
+  },
+  {
+    "city": "milano",
+    "name": "Milano Cadorna",
+    "visitorsPerDay": 90000,
+    "note": "FNM: ~30 M pax/anno"
+  },
+  {
+    "city": "milano",
+    "name": "Milano Porta Garibaldi",
+    "visitorsPerDay": 90000,
+    "aliases": [
+      "Milano Porta Garibaldi (superficie)",
+      "Porta Garibaldi"
+    ]
+  },
+  {
+    "city": "milano",
+    "name": "Milano Rogoredo",
+    "visitorsPerDay": 30000
+  },
+  {
+    "city": "milano",
+    "name": "Milano Lambrate",
+    "visitorsPerDay": 30000
+  },
+  {
+    "city": "milano",
+    "name": "Milano Bovisa",
+    "visitorsPerDay": 25000
+  },
+  {
+    "city": "roma",
+    "name": "Roma Tiburtina",
+    "visitorsPerDay": 140000
+  },
+  {
+    "city": "roma",
+    "name": "Roma Ostiense",
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "roma",
+    "name": "Roma Trastevere",
+    "visitorsPerDay": 30000
+  },
+  {
+    "city": "paris",
+    "name": "Paris Montparnasse",
+    "visitorsPerDay": 150000
+  },
+  {
+    "city": "paris",
+    "name": "Paris Austerlitz",
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "london",
+    "name": "London Bridge",
+    "visitorsPerDay": 170000
+  },
+  {
+    "city": "london",
+    "name": "Clapham Junction",
+    "visitorsPerDay": 80000
+  },
+  {
+    "city": "madrid",
+    "name": "Madrid-Chamartín",
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "madrid",
+    "name": "Nuevos Ministerios",
+    "visitorsPerDay": 70000
+  },
+  {
+    "city": "barcelona",
+    "name": "Barcelona Sants",
+    "visitorsPerDay": 110000
+  },
+  {
+    "city": "barcelona",
+    "name": "Passeig de Gràcia",
+    "visitorsPerDay": 50000
+  },
+  {
+    "city": "newyork",
+    "name": "Pennsylvania Station",
+    "visitorsPerDay": 600000
+  },
+  {
+    "city": "newyork",
+    "name": "Grand Central Terminal",
+    "visitorsPerDay": 750000
+  },
+  {
+    "city": "torino",
+    "name": "Stadio Olimpico Grande Torino",
+    "visitorsPerDay": 8400,
+    "note": "capienza 28 000 × 0,3"
+  },
+  {
+    "city": "torino",
+    "name": "Allianz Stadium",
+    "visitorsPerDay": 12500,
+    "note": "capienza 41 507 × 0,3"
+  },
+  {
+    "city": "torino",
+    "name": "Pala Alpitour",
+    "visitorsPerDay": 4000
+  },
+  {
+    "city": "london",
+    "name": "London Paddington",
+    "aliases": [
+      "Paddington"
+    ],
+    "visitorsPerDay": 100000
+  },
+  {
+    "city": "london",
+    "name": "St Pancras International",
+    "aliases": [
+      "London St Pancras International",
+      "St Pancras"
+    ],
+    "visitorsPerDay": 100000
+  },
+  {
+    "city": "london",
+    "name": "Liverpool Street",
+    "aliases": [
+      "London Liverpool Street"
+    ],
+    "visitorsPerDay": 190000
+  },
+  {
+    "city": "london",
+    "name": "King's Cross",
+    "aliases": [
+      "London King's Cross",
+      "Kings Cross"
+    ],
+    "visitorsPerDay": 90000
+  },
+  {
+    "city": "london",
+    "name": "Euston",
+    "aliases": [
+      "London Euston"
+    ],
+    "visitorsPerDay": 120000
+  },
+  {
+    "city": "london",
+    "name": "Waterloo",
+    "aliases": [
+      "London Waterloo"
+    ],
+    "visitorsPerDay": 270000
+  },
+  {
+    "city": "london",
+    "name": "Charing Cross",
+    "aliases": [
+      "London Charing Cross"
+    ],
+    "visitorsPerDay": 80000
+  },
+  {
+    "city": "london",
+    "name": "Cannon Street",
+    "aliases": [
+      "London Cannon Street"
+    ],
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "london",
+    "name": "Fenchurch Street",
+    "aliases": [
+      "London Fenchurch Street"
+    ],
+    "visitorsPerDay": 50000
+  },
+  {
+    "city": "london",
+    "name": "Marylebone",
+    "aliases": [
+      "London Marylebone"
+    ],
+    "visitorsPerDay": 45000
+  },
+  {
+    "city": "paris",
+    "name": "Haussmann - Saint-Lazare",
+    "aliases": [
+      "Haussmann Saint-Lazare"
+    ],
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "paris",
+    "name": "Gare Saint-Lazare",
+    "aliases": [
+      "Paris Saint-Lazare",
+      "Paris-Saint-Lazare"
+    ],
+    "visitorsPerDay": 275000
+  },
+  {
+    "city": "paris",
+    "name": "Châtelet - Les Halles",
+    "aliases": [
+      "Châtelet–Les Halles",
+      "Chatelet Les Halles"
+    ],
+    "visitorsPerDay": 200000
+  },
+  {
+    "city": "paris",
+    "name": "Gare de l'Est",
+    "aliases": [
+      "Paris-Est",
+      "Paris Est"
+    ],
+    "visitorsPerDay": 100000
+  },
+  {
+    "city": "paris",
+    "name": "La Défense",
+    "aliases": [
+      "La Défense - Grande Arche"
+    ],
+    "visitorsPerDay": 150000
+  },
+  {
+    "city": "paris",
+    "name": "Auber",
+    "visitorsPerDay": 50000
+  },
+  {
+    "city": "paris",
+    "name": "Charles de Gaulle — Étoile",
+    "aliases": [
+      "Charles de Gaulle - Étoile",
+      "Charles de Gaulle–Étoile"
+    ],
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "barcelona",
+    "name": "Barcelona-Plaça de Catalunya",
+    "aliases": [
+      "Plaça de Catalunya",
+      "Barcelona - Plaça de Catalunya"
+    ],
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "barcelona",
+    "name": "Barcelona-Arc de Triomf",
+    "aliases": [
+      "Arc de Triomf"
+    ],
+    "visitorsPerDay": 20000
+  },
+  {
+    "city": "barcelona",
+    "name": "Barcelona-La Sagrera-Meridiana",
+    "aliases": [
+      "La Sagrera",
+      "Barcelona-La Sagrera"
+    ],
+    "visitorsPerDay": 30000
+  },
+  {
+    "city": "barcelona",
+    "name": "Barcelona-Estació de França",
+    "aliases": [
+      "Estació de França"
+    ],
+    "visitorsPerDay": 10000
+  },
+  {
+    "city": "barcelona",
+    "name": "Barcelona-Fabra i Puig",
+    "aliases": [
+      "Fabra i Puig"
+    ],
+    "visitorsPerDay": 8000
+  },
+  {
+    "city": "madrid",
+    "name": "Sol",
+    "aliases": [
+      "Madrid-Sol"
+    ],
+    "visitorsPerDay": 60000
+  },
+  {
+    "city": "madrid",
+    "name": "Recoletos",
+    "aliases": [
+      "Madrid-Recoletos"
+    ],
+    "visitorsPerDay": 30000
+  },
+  {
+    "city": "madrid",
+    "name": "Embajadores",
+    "aliases": [
+      "Madrid-Embajadores"
+    ],
+    "visitorsPerDay": 15000
+  },
+  {
+    "city": "madrid",
+    "name": "Madrid-Puerta de Atocha",
+    "aliases": [
+      "Atocha",
+      "Madrid Atocha",
+      "Madrid-Atocha Cercanías",
+      "Atocha Cercanías"
+    ],
+    "visitorsPerDay": 300000
+  },
+  {
+    "city": "madrid",
+    "name": "Príncipe Pío",
+    "aliases": [
+      "Madrid-Príncipe Pío"
+    ],
+    "visitorsPerDay": 40000
+  },
+  {
+    "city": "newyork",
+    "name": "34th Street–Herald Square",
+    "aliases": [
+      "34th Street - Herald Square",
+      "34 St–Herald Sq"
+    ],
+    "visitorsPerDay": 100000
+  },
+  {
+    "city": "newyork",
+    "name": "Fulton Street",
+    "aliases": [
+      "Fulton Center"
+    ],
+    "visitorsPerDay": 90000
+  },
+  {
+    "city": "newyork",
+    "name": "Atlantic Terminal",
+    "aliases": [
+      "Atlantic Avenue–Barclays Center"
+    ],
+    "visitorsPerDay": 90000
+  },
+  {
+    "city": "newyork",
+    "name": "Jamaica",
+    "aliases": [
+      "Jamaica Station"
+    ],
+    "visitorsPerDay": 100000
+  },
+  {
+    "city": "newyork",
+    "name": "World Trade Center",
+    "aliases": [
+      "WTC Cortlandt",
+      "World Trade Center Transportation Hub"
+    ],
+    "visitorsPerDay": 70000
+  },
+  {
+    "city": "roma",
+    "name": "Roma Termini",
+    "visitorsPerDay": 480000,
+    "note": "solo se Wikidata manca"
+  },
+  {
+    "city": "milano",
+    "name": "Milano Centrale",
+    "visitorsPerDay": 320000,
+    "note": "solo se Wikidata manca"
+  }
+]

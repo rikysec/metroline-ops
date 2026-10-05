@@ -1,0 +1,21 @@
+{
+  "_doc": "Jobs the server agent runs on its own. interval in minutes; cmd relative to the repo root; python3 = the agent's interpreter. Edit, commit, push: the server picks it up within 10 minutes.",
+  "jobs": [
+    {
+      "id": "poi_fleet",
+      "enabled": true,
+      "every_minutes": 60,
+      "timeout_minutes": 55,
+      "cmd": ["python3", "fleet/poi_fleet.py", "--budget-minutes", "45", "--max-cities", "12", "--refresh-days", "90"],
+      "note": "POI layers of the top-1000 cities: ~12 cities per hour, every city refreshed every 90 days"
+    },
+    {
+      "id": "health",
+      "enabled": true,
+      "every_minutes": 10,
+      "timeout_minutes": 2,
+      "cmd": ["python3", "agent/health.py"],
+      "note": "local Caddy answers, served folder inventory, disk"
+    }
+  ]
+}

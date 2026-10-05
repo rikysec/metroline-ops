@@ -1,0 +1,4 @@
+{"generated": "2026-10-05", "source": "test list", "cities": [
+ {"rank": 1, "id": "torino", "name": "Torino", "names": ["Torino", "Turin"], "country": "IT", "lat": 45.07, "lon": 7.68, "population": 848885, "radiusKm": 12, "bbox": [45.0, 7.58, 45.13, 7.75], "pinned": true},
+ {"rank": 2, "id": "novara", "name": "Novara", "names": ["Novara"], "country": "IT", "lat": 45.4469, "lon": 8.6218, "population": 104000, "radiusKm": 9, "bbox": [45.3661, 8.5067, 45.5277, 8.7369], "pinned": false}
+]}
