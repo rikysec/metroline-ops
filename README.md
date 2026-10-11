@@ -107,6 +107,13 @@ Tools' python 3.9 with the pinned wheels of `fleet/requirements-bake.txt` (raste
 on the dev Mac: Torino's grid comes out byte-identical to the hand bake (tiles are pixel-aligned with the global
 mosaic) and its terrain has 843 water cells against 862 from the OSM version. Status: `status.json → grid_fleet`.
 
+**Terrain of the 8 pinned cities** (job `pinned_terrain`, daily): the fleet never touches the pinned cities, so their
+terrain — hand-baked on the same geometry as their grids (subwayios `tools/ghsl-bake`, OSM water) and identical to the
+app's test fixtures — lives in `fleet/pinned_terrain/`. `fleet/publish_pinned_terrain.py` checks each file (gunzip,
+own `cityId`, layers sized rows × cols, geometry equal to the served `grid_<id>.json.gz`) and publishes it atomically
+when missing or different. Added 2026-10-11: until then `terrain_<pinned>.json.gz` answered 404, so the launch cities
+priced construction on flat land even with Pro.
+
 ## Files the Mac publishes
 
 ```

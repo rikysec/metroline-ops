@@ -34,6 +34,17 @@
       "note": "GHSL demand grids + terrain (GLO-30 + WorldCover water) for the top-1000 cities: ≤150 cities per 50-minute run, hourly until the initial bake is done (JRC/AWS have no fair-use cap; ~245 MB of tiles per run at most), tile-first; the 8 hand-baked cities are never touched"
     },
     {
+      "id": "pinned_terrain",
+      "enabled": true,
+      "every_minutes": 1440,
+      "timeout_minutes": 3,
+      "cmd": [
+        "python3",
+        "fleet/publish_pinned_terrain.py"
+      ],
+      "note": "terrain of the 8 hand-baked launch cities (fleet/pinned_terrain, identical to the app's fixtures): verified against the served grid geometry and published when missing or different; daily, idempotent"
+    },
+    {
       "id": "health",
       "enabled": true,
       "every_minutes": 10,
